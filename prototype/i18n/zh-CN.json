@@ -131,5 +131,90 @@
     "errNoPage": "找不到页面：{path}",
     "errNoDesktop": "没有找到桌面窗口，无法挂载到壁纸层。",
     "errStart": "启动失败：{msg}"
+  },
+  "themes": {
+    "living-lagoon": {
+      "name": "泻湖群岛",
+      "desc": "清澈的动态水面，图标周围形成柔软沙岛",
+      "groups": [
+        "图标周围",
+        "动画"
+      ],
+      "params": {
+        "sigma": {
+          "label": "区域大小",
+          "unit": "px"
+        },
+        "speed": {
+          "label": "流动速度"
+        },
+        "detail": {
+          "label": "细节强度"
+        },
+        "palette": {
+          "label": "配色",
+          "options": [
+            "青绿",
+            "深蓝"
+          ]
+        }
+      }
+    },
+    "living-sky": {
+      "name": "云端花园",
+      "desc": "飘动的云团，搭配蓝天或日落色彩",
+      "groups": [
+        "图标周围",
+        "动画"
+      ],
+      "params": {
+        "sigma": {
+          "label": "区域大小",
+          "unit": "px"
+        },
+        "speed": {
+          "label": "流动速度"
+        },
+        "detail": {
+          "label": "细节强度"
+        },
+        "palette": {
+          "label": "配色",
+          "options": [
+            "蓝天",
+            "日落"
+          ]
+        }
+      }
+    },
+    "living-colors": {
+      "name": "流动色彩",
+      "desc": "有机流动的色彩区域，四种舒缓配色",
+      "groups": [
+        "图标周围",
+        "动画"
+      ],
+      "params": {
+        "sigma": {
+          "label": "区域大小",
+          "unit": "px"
+        },
+        "speed": {
+          "label": "流动速度"
+        },
+        "detail": {
+          "label": "细节强度"
+        },
+        "palette": {
+          "label": "配色",
+          "options": [
+            "翡翠",
+            "丁香",
+            "暖橙",
+            "暮蓝"
+          ]
+        }
+      }
+    }
   }
 }

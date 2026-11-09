@@ -174,6 +174,7 @@ uniform vec2 uGround;
 uniform vec3 uContactL, uContactR;
 uniform vec3 uPlace;
 uniform float uScale, uTime, uLook, uShadow, uRunWind, uTension, uKiteRock;
+uniform vec3 uSunShadow;
 out vec4 o;
 vec4 over(vec4 base, vec4 top) {
   float alpha=top.a+base.a*(1.-top.a);
@@ -327,12 +328,16 @@ void main() {
   vec2 screen=uOffset+vec2(gl_FragCoord.x/uScale,uRes.y-gl_FragCoord.y/uScale);
   vec2 p=(screen-uPlace.xy)/uPlace.z;
   // 投影经过当前鞋底的地面位置，保持向右下的光向，不再使用固定的离地偏移。
-  float sy=(p.y-uGround.x*p.x-uGround.y)/(uGround.x*.46-.64);
-  vec2 projected=vec2(p.x+.46*sy,uGround.x*(p.x+.46*sy)+uGround.y+sy);
+  // Invert a ground-anchored affine projection of the upright silhouette.
+  vec2 d=vec2(uSunShadow.x,max(.16,uSunShadow.y));
+  float denom=-d.y-uGround.x*d.x;
+  denom=abs(denom)<.12?(denom<0.?-.12:.12):denom;
+  float sy=(p.y-uGround.x*p.x-uGround.y)/denom;
+  vec2 projected=vec2(p.x+d.x*sy,uGround.x*(p.x+d.x*sy)+uGround.y+sy);
   vec2 personPoint=mix(p,projected,uShadow);
   vec4 person=characterColor(personPoint);
   // 风筝较高：整只风筝与三条尾带一起投影，方向和云影一致。
-  vec4 kite=kiteColor(p-uShadow*vec2(98.,134.),screen);
+  vec4 kite=kiteColor(p-uShadow*uSunShadow.xy*100.,screen);
   vec2 hand=uHand,attach=uKite+turn(vec2(-41.,-16.),kiteAngle());
   vec2 control=mix(hand,attach,.5)+vec2(-13.+sin(uTime*.8)*6.,18.)*(1.-uTension*.85);
   float line=1e5;vec2 previous=hand;
@@ -471,8 +476,8 @@ void main() {
     }
     const state={time,position:{...position},layout:signature,routeTarget:trip?trip.to:target,kite:{x:position.x+kx*s,y:position.y+ky*s},...activity,wind:runWind,runner:rig,ground,tug,linePull,kiteReaction:{...kiteReaction}};
     if(!visible)return {state};
-    const k=cv._scale,left=Math.floor((position.x-96*s)*k)-1,top=Math.floor((position.y-116*s)*k)-1;
-    const width=Math.ceil(708*s*k)+2,height=Math.ceil(726*s*k)+2;
+    const k=cv._scale,left=Math.floor((position.x-560*s)*k)-1,top=Math.floor((position.y-300*s)*k)-1;
+    const width=Math.ceil(1250*s*k)+2,height=Math.ceil(1100*s*k)+2;
     if(width!==targetWidth||height!==targetHeight){
       targetWidth=width;targetHeight=height;
       gl.activeTexture(gl.TEXTURE6);
@@ -486,7 +491,7 @@ void main() {
       }
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);gl.viewport(0,0,width,height);
-    gl.useProgram(shader.p);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,texture);
+    gl.useProgram(shader.p);LivingSun.uniforms(gl,shader.U);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,texture);
     gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,runTexture);gl.uniform1i(shader.U.uRunSprite,7);
     gl.uniform1i(shader.U.uCharacter,4);gl.uniform2f(shader.U.uRes,width/k,height/k);
     gl.uniform2f(shader.U.uOffset,left/k,top/k);
@@ -503,7 +508,7 @@ void main() {
     gl.uniform2f(shader.U.uReelHand,...pose.reelHand);gl.uniform1f(shader.U.uLook,pose.look);
     gl.uniform1f(shader.U.uScale,k);gl.uniform1f(shader.U.uTime,time);gl.uniform1f(shader.U.uRunWind,runWind);
     const regions=[
-      [[-70,25,185,230],[105,140,612,610]],
+      [[-560,-300,690,800]],
       [[-90,-110,116,90],[12,-35,205,260],[12,65,514,476]]
     ];
     try{

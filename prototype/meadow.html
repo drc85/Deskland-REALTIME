@@ -143,6 +143,7 @@
 </aside>
 <div id="nogl">当前浏览器不支持 WebGL2，无法运行原型。</div>
 
+<script src="living-sun.js"></script>
 <script>
 'use strict';
 
@@ -339,6 +340,7 @@ void main() {
 const FS = `#version 300 es
 precision highp float;
 uniform sampler2D uNoise, uFA, uFB;
+uniform vec3 uSunShadow, uSunLight;
 uniform vec2 uRes, uGrid;
 uniform float uScale, uSeed, uStep, uMix, uTime, uDebug, uEdge;
 #ifdef MEADOW_ACTOR
@@ -363,8 +365,11 @@ const vec3 INK = vec3(0.24, 0.38, 0.18);                                      //
 const vec3 SHADOW = vec3(0.56, 0.66, 0.52);                                   // 云影：把草地压成深绿
 const vec3 CLOUD_HI = vec3(1.0, 1.0, 0.99);                                   // 云：朝光外沿的亮白
 const vec3 CLOUD_BODY = vec3(0.90, 0.93, 0.96), CLOUD_SH = vec3(0.80, 0.85, 0.90); // 云：主体 / 偏暗的圆（比大海主题少一些蓝；主体不能太白，白色的图标文字要看得清）
-const vec2 LIGHT = vec2(-0.6, -0.8);                                          // 太阳在左上方
-const vec2 SHADOW_OFF = vec2(115.0, 156.0);                                    // 云影落在右下方，离云远 → 云飘得高
+// Light follows the shared screen sun.
+#define LIGHT normalize(-uSunShadow.xy)
+//                                          // 太阳在左上方
+#define SHADOW_OFF (uSunShadow.xy * 65.0)
+//                                    // 云影落在右下方，离云远 → 云飘得高
 const int CIRC_K = 36;
 
 float hash2(vec2 p) {
@@ -456,25 +461,25 @@ void main() {
   float inActor=step(0.0,actorUV.x)*step(0.0,actorUV.y)*step(actorUV.x,1.0)*step(actorUV.y,1.0);
   vec4 actor=texture(uActor,actorUV);
   float actorShadow=texture(uActorShadow,actorUV).r*inActor;
-  col=mix(col,col*SHADOW,actorShadow*0.85);
+  col=mix(col,col*SHADOW,actorShadow*0.85*uSunShadow.z);
   col=mix(col,actor.rgb,actor.a*inActor);
 #endif
 
 #ifdef MEADOW_CAT
   // 只在猫所在的小矩形内启用这份着色器，猫与贴地阴影同样位于云层之下。
   vec2 catUV=(p-uCatRect.xy)/uCatRect.zw;
-  vec2 catShadowUV=(p-uCatShadow-uCatRect.xy)/uCatRect.zw;
+  vec2 catShadowUV=(p-uSunShadow.xy*8.0-uCatRect.xy)/uCatRect.zw;
   vec4 cat=catColor(catUV);
   float catShadow=catColor(catShadowUV).a;
   float inCat=step(0.,catUV.x)*step(0.,catUV.y)*step(catUV.x,1.)*step(catUV.y,1.);
   float inShadow=step(0.,catShadowUV.x)*step(0.,catShadowUV.y)*step(catShadowUV.x,1.)*step(catShadowUV.y,1.);
-  col=mix(col,col*SHADOW,catShadow*inShadow*.78);
+  col=mix(col,col*SHADOW,catShadow*inShadow*.78*uSunShadow.z);
   col=mix(col,cat.rgb,cat.a*inCat);
 #endif
 
   // ---------- 云投在草地上的影子（右下方）：一整块深绿 ----------
   float sd = cloudDist(p - SHADOW_OFF);
-  col = mix(col, col * SHADOW, ss(3.0, -3.0, sd) * 0.85);
+  col = mix(col, col * SHADOW, ss(10.0, -10.0, sd) * 0.55 * uSunShadow.z);
 
   // ---------- 云：卡通画法（和大海主题一样）——一个个圆合起来，每个圆色调略有不同，
   //            只有朝光（左上）的外轮廓一道亮白，里面没有亮面；边缘干净 ----------
@@ -488,7 +493,7 @@ void main() {
     col = mix(col, cc, ss(1.0, -1.0, d));
   }
   if (uDebug > 0.5) col = mix(col, vec3(0.9, 0.15, 0.15), 1.0 - ss(0.0, 1.5, abs(d)));
-  o = vec4(col, 1.0);
+  o = vec4(col * uSunLight, 1.0);
 }`;
 
 /* ======================================================================
@@ -566,7 +571,13 @@ function commit(fromEmpty = false) {
   const nf = computeField(P.adaptive ? iconRects() : []);
   const target = 1 - toI;
   if (fromEmpty) { FA = computeField([]); uploadField(toI, FA); }
-  else FA = FB;
+  else if (FA && FB) {
+    const t = Math.min(1, Math.max(0, (performance.now()-morphT0)/morphDur));
+    const mix = t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    const blended = new Float32Array(FB.s.length);
+    for(let i=0;i<blended.length;i++) blended[i]=FA.s[i]*(1-mix)+FB.s[i]*mix;
+    FA={s:blended}; uploadField(toI,FA);
+  } else FA=FB;
   FB = nf;
   uploadField(target, FB);
   fromI = toI; toI = target;
@@ -924,6 +935,7 @@ function draw(now) {
   const render=(renderer,withCat)=>{
     const { p, U } = renderer;
     gl.useProgram(p);
+    LivingSun.uniforms(gl, U);
     gl.viewport(0, 0, cv.width, cv.height);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noiseTex);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ftex[fromI]);
@@ -956,7 +968,8 @@ function draw(now) {
   if(cat){
     if(actor&&!catActorPR)catActorPR=program(FS.replace('#version 300 es','#version 300 es\n#define MEADOW_ACTOR\n#define MEADOW_CAT'));
     if(!actor&&!catPR)catPR=program(FS.replace('#version 300 es','#version 300 es\n#define MEADOW_CAT'));
-    const k=cv._scale,[x,y,w,h]=cat.bounds;
+    const k=cv._scale;
+    const [x,y,w,h]=[cat.rect[0]-30,cat.rect[1]-30,cat.rect[2]+60,cat.rect[3]+60];
     const left=Math.max(0,Math.floor(x*k)),top=Math.max(0,Math.floor(y*k));
     const right=Math.min(cv.width,Math.ceil((x+w)*k)),bottom=Math.min(cv.height,Math.ceil((y+h)*k));
     gl.enable(gl.SCISSOR_TEST);gl.scissor(left,cv.height-bottom,Math.max(0,right-left),Math.max(0,bottom-top));
@@ -1111,17 +1124,21 @@ function startHostedMode() {
   icons = [];
   commit(true);                                   // 先是一片草地（还不知道图标在哪）
   let first = true;
+  const settlePaused=()=>{if(paused&&iconsSeen){curMix=1;morphT0=-1e9;draw(performance.now());}};
   const handle = m => {
-    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; return; }
-    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; settlePaused();return; }
+    if (m.t === 'settings') { if(m.environment) LivingSun.setConfig(m.environment); applySettings(m.v || {}); return; }
+    if (m.t === 'environment') { LivingSun.setConfig(m.v);settlePaused(); return; }
     if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
     if (m.t !== 'icons') return;
     const k = window.devicePixelRatio || 1;       // 物理像素 → CSS 像素
     icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
     if (PREVIEW) drawGhosts();
+    if(window.LivingIconShadows) LivingIconShadows.update(m);
     iconsSeen = true;
     commit(first);                                // 第一次：云慢慢长出来；之后：云跟着图标平滑移动
     first = false;
+    settlePaused();
   };
   if (PREVIEW) {
     addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
@@ -1136,6 +1153,7 @@ function startHostedMode() {
 </script>
 <script src="meadow-boy.js"></script>
 <script src="meadow-cat.js"></script>
+<script src="living-icon-shadows.js"></script>
 <script src="share.js"></script>   <!-- 分享图片 / 分享动画（示例图标、名字是色块） -->
 </body>
 </html>

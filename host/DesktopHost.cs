@@ -199,8 +199,9 @@ static class AutoStartCheck
 static class Json
 {
     static readonly JavaScriptSerializer S = new JavaScriptSerializer();
-    public static object Parse(string s) { return S.DeserializeObject(s); }
-    public static string Stringify(object o) { return S.Serialize(o); }
+    static readonly object Gate = new object();
+    public static object Parse(string s) { lock(Gate) return S.DeserializeObject(s); }
+    public static string Stringify(object o) { lock(Gate) return S.Serialize(o); }
     public static Dictionary<string, object> Obj(params object[] kv)
     {
         var d = new Dictionary<string, object>();
@@ -215,6 +216,7 @@ static class Settings
 {
     static readonly string FilePath = Path.Combine(Log.DataDir, "settings.json");
     public static string Theme = "beach";
+    public static Dictionary<string, object> Environment = new Dictionary<string, object>();
     public static string Lang = "auto";                // 界面语言："auto"（跟随系统）或 I18n.Supported 里的一种
     public static Dictionary<string, Dictionary<string, object>> Params = new Dictionary<string, Dictionary<string, object>>();
 
@@ -226,6 +228,7 @@ static class Settings
             var root = Json.Parse(File.ReadAllText(FilePath, Encoding.UTF8)) as Dictionary<string, object>;
             if (root == null) return;
             object v;
+            if(root.TryGetValue("environment",out v) && v is Dictionary<string,object>) Environment=(Dictionary<string,object>)v;
             if (root.TryGetValue("theme", out v) && v is string) Theme = (string)v;
             if (root.TryGetValue("lang", out v) && v is string) Lang = (string)v;
             if (root.TryGetValue("params", out v) && v is Dictionary<string, object>)
@@ -244,7 +247,7 @@ static class Settings
         try
         {
             Directory.CreateDirectory(Log.DataDir);
-            File.WriteAllText(FilePath, Json.Stringify(Json.Obj("version", 1, "theme", Theme, "lang", Lang, "params", Params)), new UTF8Encoding(false));
+            File.WriteAllText(FilePath, Json.Stringify(Json.Obj("version", 1, "theme", Theme, "lang", Lang, "params", Params, "environment", Environment)), new UTF8Encoding(false));
         }
         catch (Exception ex) { Log.Write("保存设置失败：" + ex.Message); }
     }
@@ -428,7 +431,7 @@ class HostContext : ApplicationContext
 
     string SettingsMessage()
     {
-        return Json.Stringify(Json.Obj("t", "settings", "v", Settings.For(Settings.Theme)));
+        return Json.Stringify(Json.Obj("t", "settings", "v", Settings.For(Settings.Theme), "environment", Settings.Environment));
     }
 
     string UpdateStateMessage()
@@ -477,10 +480,21 @@ class HostContext : ApplicationContext
                 settingsWin.Post(Json.Stringify(Json.Obj("t", "init", "theme", Settings.Theme, "params", Settings.Params,
                     "screen", Json.Obj("w", scr.Width, "h", scr.Height), "autostart", IsAutoStart(),
                     "autostartWarn", autoStartSw != null, "autostartSw", autoStartSw ?? "",
-                    "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys)));
+                    "environment", Settings.Environment, "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys)));
                 if (updateVersion != null) PostUpdateState();
                 if (form != null && form.LastIcons != "") settingsWin.Post(form.LastIcons);
                 break;
+            case "environment":
+            {
+                object value;
+                if(!m.TryGetValue("v",out value) || !(value is Dictionary<string,object>)) return;
+                Settings.Environment=(Dictionary<string,object>)value;
+                string message=Json.Stringify(Json.Obj("t","environment","v",Settings.Environment));
+                if(form!=null) form.Post(message);
+                settingsWin.Post(message); SaveSoon(); break;
+            }
+            case "locationSearch":
+                LocationSearch.Start(m, settingsWin); break;
             case "set":
             {
                 string theme = m["theme"] as string, key = m["key"] as string;
@@ -1337,7 +1351,10 @@ class WallpaperForm : Form
             sb.Append('[').Append(r.Left - screen.X).Append(',').Append(r.Top - screen.Y).Append(',')
               .Append(r.Right - screen.X).Append(',').Append(r.Bottom - screen.Y).Append(']');
         }
-        sb.Append("]}");
+        sb.Append("],\"s\":");
+        var shadows=new List<object>();
+        foreach(object[] shadow in reader.Shadows) shadows.Add(new object[]{(int)shadow[0]-screen.X,(int)shadow[1]-screen.Y,(int)shadow[2]-screen.X,(int)shadow[3]-screen.Y,shadow[4]});
+        sb.Append(Json.Stringify(shadows)).Append("}");
         string json = sb.ToString();
         if (json == lastIcons) return;
         lastIcons = json;
@@ -1405,6 +1422,7 @@ class WallpaperForm : Form
 class IconReader : IDisposable
 {
     IntPtr listView, proc, mem;
+    public List<object> Shadows = new List<object>();
 
     static IntPtr FindListView()
     {
@@ -1432,13 +1450,14 @@ class IconReader : IDisposable
         Native.GetWindowThreadProcessId(listView, out pid);
         proc = Native.OpenProcess(0x0008 | 0x0010 | 0x0020, false, pid);   // VM_OPERATION | VM_READ | VM_WRITE
         if (proc == IntPtr.Zero) return false;
-        mem = Native.VirtualAllocEx(proc, IntPtr.Zero, new IntPtr(64), 0x1000 | 0x2000, 0x04);
+        mem = Native.VirtualAllocEx(proc, IntPtr.Zero, new IntPtr(4096), 0x1000 | 0x2000, 0x04);
         return mem != IntPtr.Zero;
     }
 
     public List<Native.RECT> Read(out bool visible)
     {
         visible = false;
+        Shadows.Clear();
         if (listView == IntPtr.Zero || mem == IntPtr.Zero || !Native.IsWindow(listView)) { if (!Open()) return null; }
         visible = Native.IsWindowVisible(listView);
         var result = new List<Native.RECT>();
@@ -1455,6 +1474,26 @@ class IconReader : IDisposable
             if (!Native.ReadProcessMemory(proc, mem, out r, 16, out n)) { Close(); return null; }
             r.Left += origin.X; r.Right += origin.X; r.Top += origin.Y; r.Bottom += origin.Y;
             result.Add(r);
+            // LVIR_ICON excludes the text label. Read its displayed label only
+            // to match a Shell silhouette locally; never include it in JSON.
+            var glyph=new Native.RECT {Left=1};
+            if(Native.WriteProcessMemory(proc,mem,ref glyph,16,out n)) {
+                Native.SendMessage(listView,0x100E,new IntPtr(i),mem);
+                if(Native.ReadProcessMemory(proc,mem,out glyph,16,out n)) {
+                    var lv=new byte[88];
+                    Array.Copy(BitConverter.GetBytes(mem.ToInt64()+256),0,lv,24,8);
+                    Array.Copy(BitConverter.GetBytes(512),0,lv,32,4);
+                    if(Native.WriteBytes(proc,mem,lv,lv.Length,out n)) {
+                        Native.SendMessage(listView,0x1073 /* LVM_GETITEMTEXTW */,new IntPtr(i),mem);
+                        var text=new byte[1024];
+                        if(Native.ReadBytes(proc,new IntPtr(mem.ToInt64()+256),text,text.Length,out n)) {
+                            string label=Encoding.Unicode.GetString(text).Split('\0')[0];
+                            string mask=DesktopMasks.Find(label);
+                            if(mask!=null) Shadows.Add(new object[]{glyph.Left+origin.X,glyph.Top+origin.Y,glyph.Right+origin.X,glyph.Bottom+origin.Y,mask});
+                        }
+                    }
+                }
+            }
         }
         return result;
     }
@@ -1523,6 +1562,8 @@ static class Native
     [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, IntPtr size, uint type, uint protect);
     [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, IntPtr size, uint type);
     [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, ref RECT buf, int size, out IntPtr written);
+    [DllImport("kernel32.dll",EntryPoint="WriteProcessMemory")] public static extern bool WriteBytes(IntPtr proc,IntPtr addr,byte[] bytes,int size,out IntPtr written);
+    [DllImport("kernel32.dll",EntryPoint="ReadProcessMemory")] public static extern bool ReadBytes(IntPtr proc,IntPtr addr,byte[] bytes,int size,out IntPtr read);
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, out RECT buf, int size, out IntPtr read);
 }
 

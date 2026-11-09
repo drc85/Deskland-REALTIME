@@ -1,5 +1,7 @@
 # Deskland Preview
 
+> **Living Desktop development branch:** this fork adds location-based day/night lighting, sun-driven soft shadows, city/postal-code search, time preview and three original adaptive designs. See [Living Desktop changes](LIVING-DESKTOP-CHANGES.md) for implementation details, validation and current limitations. This is an independent development version, not an official Deskland release. Live weather is planned and is not implemented yet.
+
 **Adaptive Windows wallpaper that makes your desktop icons part of the scenery.**
 
 Deskland turns the space around your icons into a living landscape. Move, add or remove an icon and the beach, meadow, clouds and shadows quietly reshape around it — in real time, without AI, an account or an API key.

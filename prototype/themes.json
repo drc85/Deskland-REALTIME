@@ -175,6 +175,185 @@
       ]
     },
     {
+      "id": "living-lagoon",
+      "adaptive": true,
+      "name": "泻湖群岛",
+      "desc": "清澈的动态水面，图标周围形成柔软沙岛",
+      "page": "living-lagoon.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(living-thumbs/lagoon.svg)",
+      "thumbSource": "original",
+      "groups": [
+        {
+          "name": "图标周围",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "区域大小",
+              "min": 35,
+              "max": 180,
+              "step": 1,
+              "default": 95,
+              "unit": "px"
+            }
+          ]
+        },
+        {
+          "name": "动画",
+          "params": [
+            {
+              "key": "speed",
+              "label": "流动速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "detail",
+              "label": "细节强度",
+              "min": 0,
+              "max": 1,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "palette",
+              "label": "配色",
+              "options": [
+                "青绿",
+                "深蓝"
+              ],
+              "default": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "living-sky",
+      "adaptive": true,
+      "name": "云端花园",
+      "desc": "飘动的云团，搭配蓝天或日落色彩",
+      "page": "living-sky.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(living-thumbs/sky.svg)",
+      "thumbSource": "original",
+      "groups": [
+        {
+          "name": "图标周围",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "区域大小",
+              "min": 35,
+              "max": 180,
+              "step": 1,
+              "default": 95,
+              "unit": "px"
+            }
+          ]
+        },
+        {
+          "name": "动画",
+          "params": [
+            {
+              "key": "speed",
+              "label": "流动速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "detail",
+              "label": "细节强度",
+              "min": 0,
+              "max": 1,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "palette",
+              "label": "配色",
+              "options": [
+                "蓝天",
+                "日落"
+              ],
+              "default": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "living-colors",
+      "adaptive": true,
+      "name": "流动色彩",
+      "desc": "有机流动的色彩区域，四种舒缓配色",
+      "page": "living-colors.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(living-thumbs/colors.svg)",
+      "thumbSource": "original",
+      "groups": [
+        {
+          "name": "图标周围",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "区域大小",
+              "min": 35,
+              "max": 180,
+              "step": 1,
+              "default": 95,
+              "unit": "px"
+            }
+          ]
+        },
+        {
+          "name": "动画",
+          "params": [
+            {
+              "key": "speed",
+              "label": "流动速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "detail",
+              "label": "细节强度",
+              "min": 0,
+              "max": 1,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "palette",
+              "label": "配色",
+              "options": [
+                "翡翠",
+                "丁香",
+                "暖橙",
+                "暮蓝"
+              ],
+              "default": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",

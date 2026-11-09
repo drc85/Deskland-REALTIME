@@ -547,6 +547,89 @@
           "unit": ""
         }
       }
+    },
+    "living-lagoon": {
+      "name": "Lagoon Islands",
+      "desc": "Clear moving water and soft sand islands around your icons",
+      "groups": [
+        "Around icons",
+        "Motion & colour"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Area size",
+          "unit": "px"
+        },
+        "speed": {
+          "label": "Animation speed"
+        },
+        "detail": {
+          "label": "Surface detail"
+        },
+        "palette": {
+          "label": "Palette",
+          "options": [
+            "Turquoise",
+            "Ocean blue"
+          ]
+        }
+      }
+    },
+    "living-sky": {
+      "name": "Cloud Garden",
+      "desc": "Drifting cloud banks floating over a blue or sunset sky",
+      "groups": [
+        "Around icons",
+        "Motion & colour"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Area size",
+          "unit": "px"
+        },
+        "speed": {
+          "label": "Animation speed"
+        },
+        "detail": {
+          "label": "Surface detail"
+        },
+        "palette": {
+          "label": "Palette",
+          "options": [
+            "Blue sky",
+            "Sunset"
+          ]
+        }
+      }
+    },
+    "living-colors": {
+      "name": "Liquid Colours",
+      "desc": "Organic flowing colour pools with four calm palettes",
+      "groups": [
+        "Around icons",
+        "Motion & colour"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Area size",
+          "unit": "px"
+        },
+        "speed": {
+          "label": "Animation speed"
+        },
+        "detail": {
+          "label": "Surface detail"
+        },
+        "palette": {
+          "label": "Palette",
+          "options": [
+            "Jade",
+            "Lilac",
+            "Amber",
+            "Dusk"
+          ]
+        }
+      }
     }
   }
 }

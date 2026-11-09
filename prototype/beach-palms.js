@@ -16,6 +16,8 @@ uniform vec2 uRes;
 uniform vec4 uPalm;
 uniform float uPalmMirror;
 uniform float uTime;
+uniform vec3 uSunShadow;
+uniform float uPalmShadow;
 out vec2 palmUV;
 void main() {
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
@@ -23,6 +25,7 @@ void main() {
   local.x *= uPalmMirror;
   float a = sin(uTime * .65 + uPalm.w * 2.0) * .008;
   local = mat2(cos(a), sin(a), -sin(a), cos(a)) * local;
+  if(uPalmShadow>.5) local=vec2(local.x*.65,0.)-local.y*uSunShadow.xy;
   vec2 p = uPalm.xy + local * uPalm.z;
   gl_Position = vec4(p.x / uRes.x * 2.0 - 1.0, 1.0 - p.y / uRes.y * 2.0, 0.0, 1.0);
   palmUV = vec2((corner.x + uPalm.w) / ${BEACH_PALM_STYLES.length}.0, corner.y);
@@ -30,10 +33,11 @@ void main() {
 const BEACH_PALM_FS = `
 uniform sampler2D uPalmAtlas;
 uniform float uPalmOpacity;
+uniform float uPalmShadow;
 in vec2 palmUV;
 void main() {
   vec4 tree = texture(uPalmAtlas, palmUV);
-  if (tree.a < .002) discard;
+  if (tree.a < .002 && uPalmShadow < .5) discard;
   vec2 p = vec2(gl_FragCoord.x, uRes.y * uScale - gl_FragCoord.y) / uScale;
   // 飞鸟始终从树冠上方经过。
   for (int i = 0; i < 8; i++) {
@@ -42,7 +46,12 @@ void main() {
     if (dot(q, q) < 400.0) {vec3 bird = gullSD(q, b.w);if (min(bird.x, bird.y) < .6) discard;}
   }
   float alpha = tree.a * uPalmOpacity;
-  o = vec4(tree.rgb * alpha, alpha);
+  if(uPalmShadow>.5) {
+    vec2 texel=vec2(1.0/2240.0,1.0/512.0)*3.0;
+    alpha=(tree.a*2.0+texture(uPalmAtlas,palmUV+texel).a+texture(uPalmAtlas,palmUV-texel).a+texture(uPalmAtlas,palmUV+vec2(texel.x,-texel.y)).a+texture(uPalmAtlas,palmUV+vec2(-texel.x,texel.y)).a)/6.0*uPalmOpacity;
+    alpha*=.19*uSunShadow.z; o=vec4(vec3(.10,.16,.18)*uSunLight*alpha,alpha);
+  }
+  else o = vec4(tree.rgb * uSunLight * alpha, alpha);
 }`;
 
 function makeMaldivesPalmAtlas() {
@@ -53,16 +62,7 @@ function makeMaldivesPalmAtlas() {
     const width = style.width || 168, height = style.height || 156;
     const footX = style.foot[0] * width, footY = style.foot[1] * height;
     // 每种轮廓分别投影；树根位置不随素材的透明留白变化。
-    const shadow = document.createElement('canvas');shadow.width = 448;shadow.height = 512;
-    const shadowCtx = shadow.getContext('2d');shadowCtx.scale(2, 2);
-    shadowCtx.translate(112, 162);shadowCtx.transform(.85, .08, 0, -.50, 0, 0);
-    shadowCtx.drawImage(image, -footX, -footY, width, height);
-    shadowCtx.setTransform(1, 0, 0, 1, 0, 0);shadowCtx.globalCompositeOperation = 'source-in';
-    shadowCtx.fillStyle = '#3c6257';shadowCtx.fillRect(0, 0, shadow.width, shadow.height);
     ctx.save();ctx.translate(variant * 224, 0);
-    ctx.save();ctx.globalAlpha = .20;ctx.filter = 'blur(1.2px)';ctx.drawImage(shadow, 0, 0, 224, 256);ctx.restore();
-    ctx.save();ctx.globalAlpha = .17;ctx.fillStyle = '#516051';
-    ctx.beginPath();ctx.ellipse(112, 162, 4.4, 1.6, 0, 0, Math.PI * 2);ctx.fill();ctx.restore();
     ctx.save();ctx.translate(112, 162);ctx.filter = 'saturate(.94) brightness(.98)';
     ctx.drawImage(image, -footX, -footY, width, height);ctx.restore();ctx.restore();
   }
@@ -152,6 +152,9 @@ function drawMaldivesPalms(now, pass, configurePass, context) {
     if (palm.opacity < .003) continue;
     gl.uniform4f(pass.U.uPalm, palm.x, palm.y, palm.scale, palm.variant);gl.uniform1f(pass.U.uPalmOpacity, palm.opacity);
     gl.uniform1f(pass.U.uPalmMirror, palm.mirror);
+    gl.uniform1f(pass.U.uPalmShadow,1);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    gl.uniform1f(pass.U.uPalmShadow,0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   scene.palms = scene.palms.filter(p => !p.retiring || p.opacity > .003);

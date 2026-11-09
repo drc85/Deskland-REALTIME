@@ -269,6 +269,16 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; }
   }
+  .side {overflow-y:auto;}
+  .sun-card {padding:18px;flex:none;}
+  .sun-card h3 {font-size:14px;margin:0 0 12px;}
+  .sun-card label {display:block;font-size:12px;color:var(--muted);margin-top:10px;}
+  .sun-card input:not([type=checkbox]),.sun-card select {width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;}
+  .sun-card .sun-row {display:flex;gap:8px;align-items:end;}
+  .sun-card .sun-row>* {flex:1;min-width:0;}
+  .sun-card p {font-size:11px;line-height:1.5;margin-top:10px;overflow-wrap:anywhere;}
+  .sun-card button {margin-top:10px;}
+  .sun-card .sun-results button {display:block;width:100%;text-align:left;white-space:normal;}
 </style>
 </head>
 <body>
@@ -278,6 +288,7 @@
     <div class="section-title" data-i18n="themes">主题</div>
   </div>
   <div class="top-right">
+    <button class="ghost-btn" id="openSun" type="button">Location &amp; sun</button>
     <label class="lang-row">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z"/></svg>
       <select id="lang" data-i18n-title="language" aria-label="Language"></select>
@@ -324,6 +335,12 @@
   </div>
 </main>
 
+<div class="modal" id="sunModal" hidden role="dialog" aria-modal="true" aria-label="Location and sun">
+  <div class="box" style="width:min(480px,92vw);max-height:85vh;overflow-y:auto;text-align:left">
+    <button class="ghost-btn" id="closeSun" type="button" style="float:right">×</button>
+    <section class="sun-card" id="sunControls"></section>
+  </div>
+</div>
 <div class="modal" id="purchaseModal" hidden role="dialog" aria-modal="true" aria-labelledby="purchaseTitle">
   <div class="box purchase-box">
     <div class="purchase-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
@@ -379,9 +396,11 @@
 </footer>
 
 <script src="thumbs-data.js"></script>
+<script src="living-sun.js"></script>
 <script>
 'use strict';
 const host = window.chrome && window.chrome.webview;
+const APP_CACHE = 'living-0.1.4';
 const send = m => { if (host) host.postMessage(JSON.stringify(m)); };
 
 const state = { registry0: null, registry: null, theme: 'beach', params: {}, screen: null, icons: null,
@@ -396,7 +415,7 @@ const LANGS = { 'en': 'English', 'zh-CN': '简体中文' };
 const I18N = {};
 let lang = 'zh-CN';
 const loadLang = code => I18N[code] ? Promise.resolve() :
-  fetch('i18n/' + code + '.json').then(r => r.json()).then(j => { I18N[code] = j; }).catch(() => { I18N[code] = {}; });
+  fetch('i18n/' + code + '.json?v=' + APP_CACHE).then(r => r.json()).then(j => { I18N[code] = j; }).catch(() => { I18N[code] = {}; });
 // 一句界面文字：当前语言 → 英文 → 简体中文；{名字} 换成 vars 里的值
 function t(key, vars) {
   const pick = c => I18N[c] && I18N[c].ui && I18N[c].ui[key];
@@ -463,7 +482,7 @@ async function setLang(code) {
 // 换了语言：界面上的字都重新填一遍（预览不用重新加载）
 function rerenderTexts() {
   if (!state.screen) return;
-  renderHead(); renderThemes(); renderControls(); updateFoot(); shareBusy(shareState); showAutostartWarn(); showUpdate(); updatePurchaseText();
+  renderSunControls(); renderHead(); renderThemes(); renderControls(); updateFoot(); shareBusy(shareState); showAutostartWarn(); showUpdate(); updatePurchaseText();
 }
 $('lang').addEventListener('change', e => {
   state.langSetting = e.target.value;
@@ -679,6 +698,7 @@ addEventListener('message', e => {
   const m = JSON.parse(e.data);
   if (m.t === 'ready') {                 // 预览页面加载好了：先给设置，再给图标
     toPreview({ t: 'settings', v: valuesOf(themeById(state.theme)) });
+    toPreview({t:'environment',v:state.environment});
     if (state.icons) toPreview(state.icons);
   }
 });
@@ -783,7 +803,10 @@ $('shareReveal').addEventListener('click', () => send({ t: 'revealShare' }));
 
 /* ---------- 和宿主通信 ---------- */
 function onHost(m) {
+  if (m.t === 'environment') {state.environment=LivingSun.normalize(m.v);LivingSun.setConfig(state.environment);toPreview(m);return;}
+  if (m.t === 'locationResults') {window.LivingLocationResults(m);return;}
   if (m.t === 'init') {
+    state.environment=LivingSun.normalize(m.environment||{});LivingSun.setConfig(state.environment);
     state.langSetting = m.lang || 'auto';
     state.langSys = m.langSys || 'zh-CN';
     setLang(m.langEff || state.langSys).then(() => {        // 先按界面语言把文字表读进来，再画界面
@@ -796,6 +819,7 @@ function onHost(m) {
       showAutostartWarn();
       showUpdate();
       showTheme();
+      renderSunControls();
       document.documentElement.classList.add('ready');
     });
   } else if (m.t === 'themeChanged') {
@@ -839,7 +863,8 @@ function mockHost() {
   if (new URLSearchParams(location.search).has('updateDemo')) onHost({ t: 'updateState', version: '0.2.0', status: 'available', progress: -1 });
 }
 
-fetch('themes.json').then(r => r.json()).then(reg => {
+// Environment UI is defined in a shared companion script below.
+fetch('themes.json?v=' + APP_CACHE).then(r => r.json()).then(reg => {
   state.registry0 = state.registry = reg;
   if (host) {
     host.addEventListener('message', e => onHost(JSON.parse(e.data)));
@@ -847,5 +872,6 @@ fetch('themes.json').then(r => r.json()).then(reg => {
   } else mockHost();
 });
 </script>
+<script src="living-settings.js?v=0.1.4"></script>
 </body>
 </html>
